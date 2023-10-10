@@ -1,6 +1,21 @@
 import numpy as np
 
 def std_video(video, flip=False):
+    """
+
+    Parameters
+    ----------
+    video : TYPE
+        DESCRIPTION.
+    flip : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     v_mean = np.mean(video, axis=(1,2))
     v_std = np.std(video, axis=(1,2))
     v_means=np.transpose(np.tile(v_mean, (video.shape[1], video.shape[2],1)), (2,0,1))
@@ -8,6 +23,25 @@ def std_video(video, flip=False):
     return (-1)**(flip)*(video-v_means)/(v_stds)
 
 def gen_sim(n=1000, plus = -2, ind=25, seed=0):
+    """
+
+    Parameters
+    ----------
+    n : TYPE, optional
+        DESCRIPTION. The default is 1000.
+    plus : TYPE, optional
+        DESCRIPTION. The default is -2.
+    ind : TYPE, optional
+        DESCRIPTION. The default is 25.
+    seed : TYPE, optional
+        DESCRIPTION. The default is 0.
+
+    Returns
+    -------
+    arr : TYPE
+        DESCRIPTION.
+
+    """
     np.random.seed(seed)
     k = 0
     arr = np.empty((n, 50, 50, 50))

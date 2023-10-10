@@ -12,6 +12,24 @@ inv = np.linalg.inv
 det = np.linalg.det
 
 def polyagamma_int(X, omega, prior_cov):
+    """
+    Calculate integral of pi(kappa | x) directly using formula seen in the Appendix of Thomas, Jauch, and Matteson (2023).
+
+    Parameters
+    ----------
+    X : TYPE
+        DESCRIPTION.
+    omega : TYPE
+        DESCRIPTION.
+    prior_cov : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     omega_diag = np.diag(omega)
     n, d = X.shape
     V_omega = inv(X.T @ omega_diag @ X + inv(prior_cov))
@@ -71,10 +89,36 @@ def BayesCC_kappa(X, n_iter, prior_cov, print_res=True, n_jobs=None):
     
 class BayesCC:
     """
-    Two points here: it may help to implement simulated tempering: see "Sampling from multimodal distributions using tempered transitions" by Radford M. Neal
-    Also, the matrix computations below can be made much for efficient below (no need for looping with resepct to k... ALSO can parallelize iteration over t...)
+    This class implements the Logistic Regression described in Thomas, Jauch, and Matteson (2023) for Bayesian changepoint analysis.
     """
     def __init__(self, X, prior_mean, prior_cov, n_iter, scaled=True, burn_in=None):
+        """
+
+        Parameters
+        ----------
+        X : TYPE
+            DESCRIPTION.
+        prior_mean : TYPE
+            DESCRIPTION.
+        prior_cov : TYPE
+            DESCRIPTION.
+        n_iter : TYPE
+            DESCRIPTION.
+        scaled : TYPE, optional
+            DESCRIPTION. The default is True.
+        burn_in : TYPE, optional
+            DESCRIPTION. The default is None.
+
+        Raises
+        ------
+        ValueError
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
         if len(X.shape) > 2: 
             raise ValueError("Array must be 2-dimensional")
     
@@ -108,8 +152,6 @@ class BayesCC:
         
         self.omega_draws_ = np.zeros((self.n_iter, self.n))
         
-        #See below for multivariate normal (better way to sample...)
-        #http://www.statsathome.com/2018/10/19/sampling-from-multivariate-normal-precision-and-covariance-parameterizations/
         for t in range(1, self.n_iter):
             zv = np.squeeze(self.X @ self.beta_draws_[t-1,None].T)
             self.omega_draws_[t] = random_polyagamma(h=1, z=zv, size=self.n)
@@ -123,17 +165,11 @@ class BayesCC:
             y_pvec = 1/(1+np.exp(np.squeeze(-self.X @ self.beta_draws_[t,None].T)))
             k_lpvec = np.empty(self.n)
             
-            #Takes about twice as much time when np.log procedure is done...
             for k in range(self.n-1):
                 k_lpvec[k] = np.prod(1-y_pvec[:(k+1)])*np.prod(y_pvec[(k+1):])
-                #with np.errstate(divide = 'ignore'):
-                #    k_lpvec[k] = np.sum(np.log(1-y_pvec[:(k+1)])) + np.sum(np.log(y_pvec[(k+1):]))
-            
-            #with np.errstate(divide = 'ignore'):    
-                #k_lpvec[self.n-1] = np.sum(np.log(1-y_pvec))
+
             k_lpvec[self.n-1] = np.prod(1-y_pvec)
                 
-            #k_pvec = np.exp(k_lpvec)/np.sum(np.exp(k_lpvec))
             k_pvec = k_lpvec/np.sum(k_lpvec)
             self.k_draws_[t] = np.random.choice(np.arange(1, self.n+1), size=1, p=k_pvec)
             
@@ -141,6 +177,20 @@ class BayesCC:
         self.post_beta = self.beta_draws_[self.burn_in:, :]
             
     def transform(self, verbose=True):
+        """
+        Calculate the draws of kappa and beta outside of the burn-in period and calculate probabilities. 
+        Optional displays a table with estimates of kappa and corresponding probabilities.
+
+        Parameters
+        ----------
+        verbose : TYPE, optional
+            DESCRIPTION. The default is True.
+
+        Returns
+        -------
+        None.
+
+        """
         #Here we create the values outside of the burn_in and calculate probabilities
         post_k_vals, post_k_counts = np.unique(self.post_k, return_counts=True)
         self.post_k_mode = post_k_vals[np.argmax(post_k_counts)]
@@ -151,6 +201,13 @@ class BayesCC:
             print(tabulate(table, headers='firstrow', tablefmt='fancy_grid'))
         
     def plot_k(self):
+        """
+
+        Returns
+        -------
+        None.
+
+        """
         check_is_fitted(self)
         bins = np.arange(1, self.n+2)
         plt.hist(self.post_k, rwidth=0.9, density=True, align='left', bins=bins)
