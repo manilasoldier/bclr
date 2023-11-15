@@ -17,17 +17,17 @@ def polyagamma_int(X, omega, prior_cov):
 
     Parameters
     ----------
-    X : TYPE
-        DESCRIPTION.
-    omega : TYPE
-        DESCRIPTION.
-    prior_cov : TYPE
+    X : array-like
+        Ought to be an nxd array consisting of n d-dimensional observations
+    omega : array of shape (n, )
+        Consists of simulated Polya-Gamma(1,0) random variables
+    prior_cov : array-like
         Symmetric positive (semi)definite covariance matrix
 
     Returns
     -------
     ndarray
-        DESCRIPTION.
+        array of shape (n, ) consisting of simulated quantities pi(k | x) integrand
 
     """
     omega_diag = np.diag(omega)
@@ -66,7 +66,7 @@ def BayesCC_kappa(X, n_iter, prior_cov, print_res=True, n_jobs=None):
     -------
     ret : dict
         Dictionary consisting of raw MC integrands and as well as 
-        normalized estimated probabilities in a Pandas DataFrame
+        normalized estimated probabilities in a Pandas DataFrame.
         
     """
     n,_ = X.shape
@@ -91,7 +91,8 @@ def BayesCC_kappa(X, n_iter, prior_cov, print_res=True, n_jobs=None):
     
 class BayesCC:
     """
-    This class implements the Logistic Regression described in Thomas, Jauch, and Matteson (2023) for Bayesian changepoint analysis.
+    This class implements the Bayesian Changepoint via Logistic Regression (bclr) method 
+    described in Thomas, Jauch, and Matteson (2023).
     """
     def __init__(self, X, prior_mean, prior_cov, n_iter, scaled=True, burn_in=None):
         """
@@ -139,6 +140,24 @@ class BayesCC:
         self.burn_in = int(burn_in)
     
     def fit(self, init_k = None, init_beta = None):
+        """
+        Fit BayesCC class, meaning implement the Gibbs sampler discussed for drawing posterior changepoints and coefficients in 
+        Thomas, Jauch, and Matteson (2023).
+
+        Parameters
+        ----------
+        init_k : int, optional
+            The initial changepoint estimate to start the Markov chain. The default is None, in which case it is set
+            to be equal to the midpoint of the sequence.
+        init_beta : array_like of shape (d,) (where d is dimensionality of the data), optional
+            Initial value of the coefficient vector beta. The default is None, in which case it is set to be equal 
+            to the all zero coefficient vector.
+            
+        Returns
+        -------
+        None.
+
+        """
         
         if init_k == None:
             init_k = self.n/2
@@ -185,8 +204,8 @@ class BayesCC:
 
         Parameters
         ----------
-        verbose : TYPE, optional
-            DESCRIPTION. The default is True.
+        verbose : bool, optional
+            Whether to print out a table of posterior changepoint estimates. The default is True.
 
         Returns
         -------
@@ -215,12 +234,6 @@ class BayesCC:
         bins = np.arange(1, self.n+2)
         plt.hist(self.post_k, rwidth=0.9, density=True, align='left', bins=bins)
         plt.show()
-    
-    def plot_post_mean(self):
-        pass
-        
-    def trace_plot(self):
-        pass
         
     
 
