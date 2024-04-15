@@ -255,6 +255,7 @@ class BayesCC:
         None.
 
         """
+        check_is_fitted(self)
         #Here we create the values outside of the burn_in and calculate probabilities
         post_k_vals, post_k_counts = np.unique(self.post_k, return_counts=True)
         self.post_k_mode = post_k_vals[np.argmax(post_k_counts)]
