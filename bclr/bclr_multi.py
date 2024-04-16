@@ -1,5 +1,5 @@
 import numpy as np
-from . import BayesCC
+from .bclr_one import BayesCC
 
 inv = np.linalg.inv
 det = np.linalg.det

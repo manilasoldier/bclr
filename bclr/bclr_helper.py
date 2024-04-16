@@ -1,4 +1,31 @@
 import numpy as np
+from scipy.stats import binom
+
+def uni_binom(n, p, lam):
+    """
+    Interpolates between a discrete uniform and a unit-shifted binomial distribution .
+
+    Parameters
+    ----------
+    n : int
+        Number of trials parameter for binomial distribution.
+    p : float
+        Parameter for binomial distribution on [0, n-1].
+    lam : float
+        Interpolation parameter. Between 0 and 1.
+
+    Returns
+    -------
+    ndarray
+        Probability mass function on [0, n-1] (equivalently [1,n]).
+
+    """
+    if lam < 0 or lam > 1:
+        raise ValueError("Lambda must be nonnegative and no greater than 1")
+    k = np.arange(1,n+1)
+    bin_p = binom.pmf(k-1, n-1, p)
+    return bin_p**(lam) 
+    
 
 def std_video(video, flip=False):
     """
