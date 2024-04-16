@@ -1,4 +1,4 @@
-from setuptools import setup 
+from setuptools import setup, find_packages 
 
 VERSION = '0.2.0'
 DESCRIPTION = 'bclr - Bayesian changepoint detection via Logistic Regression'
@@ -8,7 +8,7 @@ setup(
     version=VERSION,
     author="Andrew M. Thomas and Michael Jauch",
     maintainer="Andrew M. Thomas",
-    package=['bclr'],
+    packages=find_packages(),
     install_requires=[
 	'matplotlib',
 	'pandas',
