@@ -1,7 +1,5 @@
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-from joblib import Parallel, delayed
 from tabulate import tabulate
 from polyagamma import random_polyagamma
 from scipy.stats import multivariate_normal
@@ -10,105 +8,6 @@ from sklearn.utils.validation import check_is_fitted
 
 inv = np.linalg.inv
 det = np.linalg.det
-
-def polyagamma_int(X, omega, prior_cov, prior_kappa, incl_last):
-    """
-    Calculate integral of pi(kappa | x) directly using formula seen in the Appendix of Thomas, Jauch, and Matteson (2023).
-
-    Parameters
-    ----------
-    X : array-like
-        Ought to be an nxd array consisting of n d-dimensional observations
-    omega : array of shape (n, )
-        Consists of simulated Polya-Gamma(1,0) random variables
-    prior_cov : array-like
-        Symmetric positive (semi)definite covariance matrix
-
-    Returns
-    -------
-    ndarray
-        array of shape (n, ) consisting of simulated quantities pi(k | x) integrand
-
-    """
-    omega_diag = np.diag(omega)
-    n, d = X.shape
-    V_omega = inv(X.T @ omega_diag @ X + inv(prior_cov))
-    dVw = det(V_omega)**(1/2)
-    
-    #create the kappa/omega matrix
-    if incl_last:
-        nzs = np.full((n,n), -1)
-        zkappa = (np.tril(nzs)+1/2)/np.sqrt(omega)
-    else:
-        nzs = np.full((n-1,n), -1)
-        zkappa = (np.tril(nzs)+1/2)/np.sqrt(omega)
-    
-    X_omega = np.sqrt(omega_diag) @ X
-    som = np.sum((1/8)*omega**(-1))
-    print(zkappa.shape)
-    
-    zk = np.diagonal(-(zkappa @ inv(np.identity(n) + X_omega @ prior_cov @ X_omega.T) @ zkappa.T))
-    return dVw*np.exp(zk+som)
-
-def BayesCC_kappa(X, n_iter, prior_cov, prior_kappa=None, print_res=True, n_jobs=None, incl_last=True):
-    """
-    Parameters
-    ----------
-    X : array-like
-        Ought to be an nxd array consisting of n d-dimensional observations
-    n_iter : int
-        Number of monte carlo iterations for Monte Carlo integration
-    prior_cov : array-like
-        Symmetric positive (semi)definite covariance matrix
-    print_res: bool
-        If True, prints indices and probabilities above 1e-3
-    sum_iter: bool
-        If True, normalizes each row and then average across all distributions, 
-        rather than regularizing after integration.
-        
-
-    Returns
-    -------
-    ret : dict
-        Dictionary consisting of raw MC integrands and as well as 
-        normalized estimated probabilities in a Pandas DataFrame.
-        
-    """
-    
-    n,_ = X.shape
-        
-    if prior_kappa is None:
-        if incl_last:
-            prior_kappa = np.repeat(1, n)
-        else:
-            prior_kappa = np.repeat(1, n-1)
-    
-    if len(prior_kappa) != (n+int(incl_last)-1):
-        raise IndexError("Length of prior distribution must be as long as number of potential changepoints")
-        
-    elif np.any(prior_kappa < 0):
-        raise ValueError("Must have nonnegative weights for prior.")
-    
-    omegas = random_polyagamma(h=1, z=0, size=(n_iter,n))
-    
-    kappa_terms = Parallel(n_jobs=n_jobs)(delayed(lambda i: 
-        polyagamma_int(X, omegas[i], prior_cov=prior_cov, 
-                       prior_kappa=prior_kappa, incl_last=incl_last))(om) for om in range(n_iter))  
-    
-    if incl_last:
-        li = n
-    else:
-        li = n-1
-    mk = np.sum(np.array(kappa_terms), axis=0)*prior_kappa
-    mk_norm = mk/np.sum(mk)
-    ret = {'raw': mk, 
-           'probs': pd.DataFrame({'Probability': mk_norm}, index=np.arange(1, li+1))}
-    
-    if print_res:
-        for i,j in enumerate(np.round(mk_norm, 4)):
-            if j > 1e-3:
-                print(i+1, j)
-    return ret
     
 class BayesCC:
     """
@@ -219,7 +118,7 @@ class BayesCC:
             kappa = np.expand_dims(np.concatenate([np.repeat(-1/2, self.k_draws_[t-1]), np.repeat(1/2, self.n-self.k_draws_[t-1])]), axis=1)
             m_omega = np.squeeze(V_omega @ (self.X.T @ kappa + inv_cov @ np.expand_dims(self.prior_mean, 1)))
             self.beta_draws_[t] = multivariate_normal.rvs(mean=m_omega, cov=V_omega, size=1)
-            
+                                                                                                                                                                          
             y_pvec = 1/(1+np.exp(np.squeeze(-self.X @ self.beta_draws_[t,None].T)))
             if self.incl_last:
                 num_elem = self.n
