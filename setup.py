@@ -18,7 +18,8 @@ setup(
 	'tabulate',
 	'scikit-learn >= 1.3.0',
 	'scipy',
-	'polyagamma >= 1.3.5.',
+	'polyagamma >= 1.3.5',
+    'ruptures >= 1.1.8'
     ],
     classifiers = [
         'Operating System :: MacOS',
