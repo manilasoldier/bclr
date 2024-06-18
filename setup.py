@@ -1,11 +1,13 @@
 from setuptools import setup, find_packages 
 
-VERSION = '0.2.0'
 DESCRIPTION = 'bclr - Bayesian changepoint detection via Logistic Regression'
+VERSION = {}
+with open("bclr/_version.py") as fp:
+    exec(fp.read(), VERSION)
 
 setup(
     name="bclr",
-    version=VERSION,
+    version=VERSION['__version__'],
     author="Andrew M. Thomas and Michael Jauch",
     maintainer="Andrew M. Thomas",
     packages=find_packages(),

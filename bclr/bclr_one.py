@@ -14,8 +14,8 @@ class BayesCC:
     This class implements the Bayesian Changepoint via Logistic Regression (bclr) method 
     described in Thomas, Jauch, and Matteson (2023).
     """
-    def __init__(self, X, prior_mean, prior_cov, n_iter, prior_kappa=None,
-                 scaled=True, burn_in=None, incl_last=True):
+    def __init__(self, X, prior_mean, prior_cov, n_iter, 
+                 prior_kappa=None, scaled=False, burn_in=None):
         """
 
         Parameters
@@ -26,16 +26,16 @@ class BayesCC:
             Array containing prior mean of Normal distribution.
         prior_cov : ndarray of shape (d,d)
             Symmetric positive (semi)definite covariance matrix. 
-        prior_kappa : ndarray of length n (or n-1 if incl_last=False) nonnegative values
-            This should consist of at 
+        prior_kappa : ndarray of length n-1 nonnegative values.
+            Prior distribution for the changepoint kappa. 
         n_iter : int
             Number of iterations to run Gibbs sampler. 
         scaled : bool, optional
-            If False, each column of data will be mean centered and normalized to have variance 1. The default is True.
+            If False, each column of data will be mean centered and 
+            standardized to have variance 1. The default is False.
         burn_in : int, optional
-            Number of initial iterations of the Gibbs sampler to discard. The default is None.
-        incl_last : bool, optional
-            Whether or not to include the last observation in changepoint calculations. The default is True.
+            Number of initial iterations of the Gibbs sampler to discard. 
+            The default is None.
 
         Raises
         ------
@@ -67,13 +67,12 @@ class BayesCC:
         else:
             if np.any(prior_kappa < 0):
                 raise ValueError("Must have nonnegative weights for prior.")
-            elif len(prior_kappa) != (self.n+int(incl_last)-1):
+            elif len(prior_kappa) != (self.n-1):
                 raise IndexError("Length of prior distribution must be as long as number of potential changepoints")
             self.prior_kappa = prior_kappa
             
         self.n_iter = n_iter
         self.burn_in = int(burn_in)
-        self.incl_last = incl_last
     
     def fit(self, init_k = None, init_beta = None):
         """
@@ -120,21 +119,13 @@ class BayesCC:
             self.beta_draws_[t] = multivariate_normal.rvs(mean=m_omega, cov=V_omega, size=1)
                                                                                                                                                                           
             y_pvec = 1/(1+np.exp(np.squeeze(-self.X @ self.beta_draws_[t,None].T)))
-            if self.incl_last:
-                num_elem = self.n
-            else:
-                num_elem = self.n-1
-                
-            k_lpvec = np.empty(num_elem)
+            k_lpvec = np.empty(self.n-1)
                 
             for k in range(self.n-1):
                 k_lpvec[k] = np.prod(1-y_pvec[:(k+1)])*np.prod(y_pvec[(k+1):])*self.prior_kappa[k]
-
-            if self.incl_last:            
-                k_lpvec[self.n-1] = np.prod(1-y_pvec)*self.prior_kappa[self.n-1]
                 
             k_pvec = k_lpvec/np.sum(k_lpvec)
-            self.k_draws_[t] = np.random.choice(np.arange(1, num_elem+1), size=1, p=k_pvec)
+            self.k_draws_[t] = np.random.choice(np.arange(1, self.n), size=1, p=k_pvec)
             
         self.post_k = self.k_draws_[self.burn_in:]
         self.post_beta = self.beta_draws_[self.burn_in:, :]
