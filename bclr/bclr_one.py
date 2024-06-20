@@ -53,9 +53,12 @@ class BayesCC:
         self.n, self.p = X.shape
     
         if not scaled:
-            self.X = StandardScaler().fit_transform(X)
+            self.std_sc = StandardScaler()
+            self.std_sc.fit(X)
+            self.X = self.std_sc.transform(X)
         else: 
             self.X = X
+        self.scaled = scaled
             
         if burn_in == None:
             burn_in = n_iter/2
@@ -63,7 +66,7 @@ class BayesCC:
         self.prior_mean = prior_mean
         self.prior_cov = prior_cov
         if prior_kappa is None:
-            self.prior_kappa = np.repeat(1, self.n)
+            self.prior_kappa = np.repeat(1, self.n-1)
         else:
             if np.any(prior_kappa < 0):
                 raise ValueError("Must have nonnegative weights for prior.")
@@ -74,7 +77,7 @@ class BayesCC:
         self.n_iter = n_iter
         self.burn_in = int(burn_in)
     
-    def fit(self, init_k = None, init_beta = None):
+    def fit(self, init_k = None, init_beta = None, small_probs = True, tol = 1e-4, c = 1e-2):
         """
         Fit BayesCC class, meaning implement the Gibbs sampler discussed for drawing posterior changepoints and coefficients in 
         Thomas, Jauch, and Matteson (2023).
@@ -118,13 +121,24 @@ class BayesCC:
             m_omega = np.squeeze(V_omega @ (self.X.T @ kappa + inv_cov @ np.expand_dims(self.prior_mean, 1)))
             self.beta_draws_[t] = multivariate_normal.rvs(mean=m_omega, cov=V_omega, size=1)
                                                                                                                                                                           
-            y_pvec = 1/(1+np.exp(np.squeeze(-self.X @ self.beta_draws_[t,None].T)))
-            k_lpvec = np.empty(self.n-1)
+            k_lpvec = np.zeros(self.n-1)
+            prior_kappa_pos = np.where(self.prior_kappa > tol)[0]
+            
+            if small_probs:
+                k_lpvec[prior_kappa_pos[0]] = c
+                for k in range(1,len(prior_kappa_pos)):
+                    k1 = prior_kappa_pos[k]
+                    k0 = prior_kappa_pos[k-1]
+                    k_lpvec[k1] = k_lpvec[k0]*np.exp(-self.X[k1,:] @ self.beta_draws_[t,None].T)*self.prior_kappa[k1]/self.prior_kappa[k0]
                 
-            for k in range(self.n-1):
-                k_lpvec[k] = np.prod(1-y_pvec[:(k+1)])*np.prod(y_pvec[(k+1):])*self.prior_kappa[k]
+                k_pvec = k_lpvec/np.sum(k_lpvec)
+                        
+            else:
+                y_pvec = 1/(1+np.exp(np.squeeze(-self.X @ self.beta_draws_[t,None].T)))
+                for k in range(self.n-1):
+                    k_lpvec[k] = np.prod(1-y_pvec[:(k+1)])*np.prod(y_pvec[(k+1):])*self.prior_kappa[k]
+                k_pvec = k_lpvec/np.sum(k_lpvec)
                 
-            k_pvec = k_lpvec/np.sum(k_lpvec)
             self.k_draws_[t] = np.random.choice(np.arange(1, self.n), size=1, p=k_pvec)
             
         self.post_k = self.k_draws_[self.burn_in:]
@@ -139,7 +153,9 @@ class BayesCC:
         ----------
         verbose : bool, optional
             Whether to print out a table of posterior changepoint estimates. The default is True.
-
+        beta_original: bool, optional
+            Whether or not to produces beta terms on the original scale. The default is False.
+            
         Returns
         -------
         None.
@@ -148,6 +164,7 @@ class BayesCC:
         check_is_fitted(self)
         #Here we create the values outside of the burn_in and calculate probabilities
         post_k_vals, post_k_counts = np.unique(self.post_k, return_counts=True)
+        
         self.post_k_mode = post_k_vals[np.argmax(post_k_counts)]
         self.post_mode_prob = np.max(post_k_counts/(self.n_iter-self.burn_in))
         self.post_beta_mean = np.mean(self.post_beta, axis=0)
@@ -166,7 +183,7 @@ class BayesCC:
 
         """
         check_is_fitted(self)
-        bins = np.arange(1, self.n+2)
+        bins = np.arange(1, self.n+1)
         plt.hist(self.post_k, rwidth=0.9, density=True, align='left', bins=bins)
         plt.show()
         

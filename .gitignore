@@ -5,12 +5,12 @@ experiments/*.py
 experiments/Experiment2_Prior.ipynb
 experiments/ExperimentCOV_AnalysisOLD.ipynb
 bclr/bclr_detectda.py
-bclr/bclr_multi.py
+bclr/bclr_multi_bs.py
 experiments/post_beta_cov40_INIT_R.txt
 experiments/post_beta_means40_INIT_R.txt
 experiments/test.txt
 experiments/cov_data_sav.csv
-
+experiments/CodeForReplication.zip
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
