@@ -131,8 +131,7 @@ class BayesCC:
                     k0 = prior_kappa_pos[k-1]
                     k_lpvec[k1] = k_lpvec[k0]*np.exp(-self.X[k1,:] @ self.beta_draws_[t,None].T)*self.prior_kappa[k1]/self.prior_kappa[k0]
                 
-                k_pvec = k_lpvec/np.sum(k_lpvec)
-                        
+                k_pvec = k_lpvec/np.sum(k_lpvec)      
             else:
                 y_pvec = 1/(1+np.exp(np.squeeze(-self.X @ self.beta_draws_[t,None].T)))
                 for k in range(self.n-1):
@@ -165,8 +164,10 @@ class BayesCC:
         #Here we create the values outside of the burn_in and calculate probabilities
         post_k_vals, post_k_counts = np.unique(self.post_k, return_counts=True)
         
+        arr = post_k_counts/(self.n_iter-self.burn_in)
+        self.norm_entr = np.sum(-arr * np.log(arr))/np.log(self.n-1)
         self.post_k_mode = post_k_vals[np.argmax(post_k_counts)]
-        self.post_mode_prob = np.max(post_k_counts/(self.n_iter-self.burn_in))
+        self.post_mode_prob = np.max(arr)
         self.post_beta_mean = np.mean(self.post_beta, axis=0)
         
         if verbose:

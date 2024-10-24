@@ -25,7 +25,10 @@ def uni_binom(n, p, lam):
     k = np.arange(1,n+1)
     bin_p = binom.pmf(k-1, n-1, p)
     return bin_p**(lam) 
-    
+
+def prob_mode(arr):
+    arr_vals, arr_counts = np.unique(arr, return_counts=True)
+    return arr_vals[np.argmax(arr_counts)]
 
 def std_video(video, flip=False):
     """
