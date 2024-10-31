@@ -13,7 +13,28 @@ class MultiBayesCC:
 
     """
     def __init__(self, X, cps, prior_cov, n_iter, lam=0, min_size=10):
-        
+        """
+
+        Parameters
+        ----------
+        X : TYPE
+            DESCRIPTION.
+        cps : TYPE
+            DESCRIPTION.
+        prior_cov : TYPE
+            DESCRIPTION.
+        n_iter : TYPE
+            DESCRIPTION.
+        lam : TYPE, optional
+            DESCRIPTION. The default is 0.
+        min_size : TYPE, optional
+            DESCRIPTION. The default is 10.
+
+        Returns
+        -------
+        None.
+
+        """
         tcps  = type(cps)
         assert tcps == int or tcps == list
         
@@ -32,6 +53,13 @@ class MultiBayesCC:
         self.min_size = min_size
         
     def fit(self):
+        """
+
+        Returns
+        -------
+        None.
+
+        """
         prior_mean = np.repeat(0, self.p)
         self.transformed = False
         self.prior_kappas = [uni_binom(n=self.bkps[i+2]-self.bkps[i]-1, 
@@ -44,6 +72,13 @@ class MultiBayesCC:
             self.bccs_[i].fit()
     
     def transform(self):
+        """
+
+        Returns
+        -------
+        None.
+
+        """
         if self.transformed:
             pass
         else:
@@ -55,6 +90,19 @@ class MultiBayesCC:
         self.transformed = True
 
     def cps_df(self, offset=0):
+        """
+
+        Parameters
+        ----------
+        offset : TYPE, optional
+            DESCRIPTION. The default is 0.
+
+        Returns
+        -------
+        df : TYPE
+            DESCRIPTION.
+
+        """
         ### Add in functionality to restrict kappa_j - kappa_{j-1} > Delta with self.min_size
         bc_info = []
         for i, bc in enumerate(self.bccs_):
@@ -67,12 +115,33 @@ class MultiBayesCC:
         df = pd.DataFrame(bc_info, columns = ['Location', 'Posterior Probability', 'Normalized Entropy'])
         return df
     
-    def warm_up(self, n_iter_w=10, random_init=False, reps=1):
+    def warm_up(self, n_iter_w=10, random_init=False, reps=1, max_iter=25):
+        """
+
+        Parameters
+        ----------
+        n_iter_w : TYPE, optional
+            DESCRIPTION. The default is 10.
+        random_init : TYPE, optional
+            DESCRIPTION. The default is False.
+        reps : TYPE, optional
+            DESCRIPTION. The default is 1.
+        max_iter : TYPE, optional
+            DESCRIPTION. The default is 25.
+
+        Returns
+        -------
+        None.
+
+        """
         self.n_iter_init = self.n_iter
         self.n_iter = n_iter_w
         best_n_entr = self.K
+        iter_tr = 0 
         if random_init:
-            for i in range(reps):
+            i = 0
+            while i < reps and iter_tr < max_iter:
+                iter_tr += 1
                 cps = list(np.sort(np.random.choice(np.arange(1, self.n), size=self.K, replace=False)).astype(np.int32))
                 self.bkps = [0] + cps + [self.n]
                 self.fit()
@@ -82,12 +151,14 @@ class MultiBayesCC:
                     cps_df = self.cps_df()
                     entr_now = cps_df['Normalized Entropy'].sum()
                     cps_vals = [0] + list(cps_df['Location'].astype(np.int32)) + [self.n]
+                    i += 1
                     if entr_now < best_n_entr and np.min(np.diff(cps_vals)) > self.min_size:
                         best_brk = cps_vals
                         best_n_entr = entr_now
+                        
                 except ValueError:
                     pass
-                
+            
             self.bkps = best_brk
             
         else:

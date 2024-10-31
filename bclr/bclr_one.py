@@ -122,22 +122,30 @@ class BayesCC:
             self.beta_draws_[t] = multivariate_normal.rvs(mean=m_omega, cov=V_omega, size=1)
                                                                                                                                                                           
             k_lpvec = np.zeros(self.n-1)
+            logk_lpvec = np.zeros(self.n-1)
             prior_kappa_pos = np.where(self.prior_kappa > tol)[0]
             
             if small_probs:
-                k_lpvec[prior_kappa_pos[0]] = c
+                logk_lpvec[prior_kappa_pos[0]] = np.log(c)
                 for k in range(1,len(prior_kappa_pos)):
                     k1 = prior_kappa_pos[k]
                     k0 = prior_kappa_pos[k-1]
-                    k_lpvec[k1] = k_lpvec[k0]*np.exp(-self.X[k1,:] @ self.beta_draws_[t,None].T)*self.prior_kappa[k1]/self.prior_kappa[k0]
+                    logk_lpvec[k1] = logk_lpvec[k0] - self.X[k1,:] @ self.beta_draws_[t,None].T + np.log(self.prior_kappa[k1]) - np.log(self.prior_kappa[k0])
                 
-                k_pvec = k_lpvec/np.sum(k_lpvec)      
+                v = np.max(logk_lpvec)
+                # to avoid overflow, we truncate log posterior kappa values to 100
+                if v > 100:
+                    logk_lpvec = logk_lpvec - v + 100
+                    
+                k_lpvec = np.exp(logk_lpvec)
+                k_pvec = k_lpvec/np.sum(k_lpvec)
+                
             else:
                 y_pvec = 1/(1+np.exp(np.squeeze(-self.X @ self.beta_draws_[t,None].T)))
                 for k in range(self.n-1):
                     k_lpvec[k] = np.prod(1-y_pvec[:(k+1)])*np.prod(y_pvec[(k+1):])*self.prior_kappa[k]
                 k_pvec = k_lpvec/np.sum(k_lpvec)
-                
+            
             self.k_draws_[t] = np.random.choice(np.arange(1, self.n), size=1, p=k_pvec)
             
         self.post_k = self.k_draws_[self.burn_in:]
