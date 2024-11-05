@@ -172,8 +172,13 @@ class BayesCC:
         #Here we create the values outside of the burn_in and calculate probabilities
         post_k_vals, post_k_counts = np.unique(self.post_k, return_counts=True)
         
-        arr = post_k_counts/(self.n_iter-self.burn_in)
-        self.norm_entr = np.sum(-arr * np.log(arr))/np.log(self.n-1)
+        arr0 = post_k_counts/(self.n_iter-self.burn_in)
+        arr = arr0[arr0 > 0]
+        if np.array_equal(arr, np.array([1.])):
+            self.norm_entr = 0
+        else:
+            self.norm_entr = np.sum(-arr * np.log(arr))/np.log(self.n-1)
+            
         self.post_k_mode = post_k_vals[np.argmax(post_k_counts)]
         self.post_mode_prob = np.max(arr)
         self.post_beta_mean = np.mean(self.post_beta, axis=0)

@@ -1,6 +1,41 @@
 import numpy as np
 from scipy.stats import binom
+import warnings
 
+class SegmentationWarning(Warning):
+    pass
+
+def sample_sep(n, k, delta=1):
+    """
+    Generates k+1 ordered random values with minimum distance delta between them. Note the last value is n.
+
+    Parameters
+    ----------
+    n : TYPE
+        DESCRIPTION.
+    k : TYPE
+        DESCRIPTION.
+    delta : TYPE, optional
+        DESCRIPTION. The default is 1.
+
+    Raises
+    ------
+    ValueError
+        DESCRIPTION.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
+    if delta > n/(k+1):
+        raise ValueError("Minimum distance spacing requirements cannot be satisfied.")
+    rem = np.random.choice(np.arange(1, k+2), n-delta*(k+1))
+    counts, _ = np.histogram(rem, np.arange(1, k+3))
+    return np.cumsum(counts + delta)
+        
+    
 def uni_binom(n, p, lam):
     """
     Interpolates between a discrete uniform and a unit-shifted binomial distribution .
@@ -23,12 +58,33 @@ def uni_binom(n, p, lam):
     if lam < 0 or lam > 1:
         raise ValueError("Lambda must be nonnegative and no greater than 1")
     k = np.arange(1,n+1)
-    bin_p = binom.pmf(k-1, n-1, p)
+    with warnings.catch_warnings():
+        # suppress the RuntimeWarning that sometimes results...
+        warnings.simplefilter("ignore")
+        bin_p = binom.pmf(k-1, n-1, p)
     return bin_p**(lam) 
 
 def prob_mode(arr):
+    """
+
+    Parameters
+    ----------
+    arr : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     arr_vals, arr_counts = np.unique(arr, return_counts=True)
-    return arr_vals[np.argmax(arr_counts)]
+    if len(arr_counts)==0:
+        warnings.warn_explicit(message="""Argument min_size too large to find posterior mode... \n""", category=SegmentationWarning, 
+                               filename="bclr_multi.py", lineno=116)
+        return np.nan
+    else:
+        return arr_vals[np.argmax(arr_counts)]
 
 def std_video(video, flip=False):
     """
