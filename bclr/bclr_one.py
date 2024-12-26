@@ -20,8 +20,8 @@ class BayesCC:
 
         Parameters
         ----------
-        X : array-like
-            n x d array of n d-dimensional vectors to assess changepoints.
+        X : array-like of shape n x d
+            Array of n d-dimensional vectors to assess changepoints.
         prior_mean : ndarray of length d
             Array containing prior mean of Normal distribution.
         prior_cov : ndarray of shape (d,d)
@@ -77,10 +77,10 @@ class BayesCC:
         self.n_iter = n_iter
         self.burn_in = int(burn_in)
     
-    def fit(self, init_k = None, init_beta = None, small_probs = True, tol = 1e-4, c = 1e-2):
+    def fit(self, init_k = None, init_beta = None, small_probs = True, tol = 1e-4, c = 1e-2, rng = None):
         """
         Fit BayesCC class, meaning implement the Gibbs sampler discussed for drawing posterior changepoints and coefficients in 
-        Thomas, Jauch, and Matteson (2023).
+        Thomas, Jauch, and Matteson (2025).
 
         Parameters
         ----------
@@ -96,6 +96,9 @@ class BayesCC:
         None.
 
         """
+        
+        if rng == None:
+            rng = np.random.default_rng()
         
         if init_k == None:
             init_k = self.n/2
@@ -113,13 +116,13 @@ class BayesCC:
         
         for t in range(1, self.n_iter):
             zv = np.squeeze(self.X @ self.beta_draws_[t-1,None].T)
-            self.omega_draws_[t] = random_polyagamma(h=1, z=zv, size=self.n)
+            self.omega_draws_[t] = random_polyagamma(h=1, z=zv, size=self.n, random_state=rng)
             
             inv_cov = inv(self.prior_cov)
             V_omega = inv(self.X.T @ np.diag(self.omega_draws_[t]) @ self.X + inv_cov)
             kappa = np.expand_dims(np.concatenate([np.repeat(-1/2, self.k_draws_[t-1]), np.repeat(1/2, self.n-self.k_draws_[t-1])]), axis=1)
             m_omega = np.squeeze(V_omega @ (self.X.T @ kappa + inv_cov @ np.expand_dims(self.prior_mean, 1)))
-            self.beta_draws_[t] = multivariate_normal.rvs(mean=m_omega, cov=V_omega, size=1)
+            self.beta_draws_[t] = multivariate_normal.rvs(mean=m_omega, cov=V_omega, size=1, random_state=rng)
                                                                                                                                                                           
             k_lpvec = np.zeros(self.n-1)
             logk_lpvec = np.zeros(self.n-1)
@@ -146,7 +149,7 @@ class BayesCC:
                     k_lpvec[k] = np.prod(1-y_pvec[:(k+1)])*np.prod(y_pvec[(k+1):])*self.prior_kappa[k]
                 k_pvec = k_lpvec/np.sum(k_lpvec)
             
-            self.k_draws_[t] = np.random.choice(np.arange(1, self.n), size=1, p=k_pvec)
+            self.k_draws_[t] = rng.choice(np.arange(1, self.n), size=1, p=k_pvec)
             
         self.post_k = self.k_draws_[self.burn_in:]
         self.post_beta = self.beta_draws_[self.burn_in:, :]

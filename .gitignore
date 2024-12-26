@@ -10,6 +10,9 @@ experiments/post_beta_means40_INIT_R.txt
 experiments/test.txt
 experiments/cov_data_sav.csv
 experiments/CodeForReplication.zip
+bclr/bclr_multi_kern.py
+bclr/bclr_detectda.py
+slope_heuristic.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

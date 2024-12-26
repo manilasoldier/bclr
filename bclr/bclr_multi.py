@@ -13,49 +13,63 @@ class MultiBayesCC:
     uncertainty and the best representation of said changepoint. This uses the dynamic programming implementation in the ruptures package.
 
     """
-    def __init__(self, X, cps, prior_cov, n_iter, lam=0, min_size=2):
+    def __init__(self, X, cps, prior_cov, n_iter=1000, lam=0, min_size=10, rng = None):
         """
 
         Parameters
         ----------
-        X : TYPE
-            DESCRIPTION.
-        cps : TYPE
-            DESCRIPTION.
-        prior_cov : TYPE
-            DESCRIPTION.
-        n_iter : TYPE
-            DESCRIPTION.
-        lam : TYPE, optional
-            DESCRIPTION. The default is 0.
-        min_size : TYPE, optional
-            DESCRIPTION. The default is 10.
+        X : array-like of shape n x d
+            Array of n d-dimensional vectors to assess changepoints.
+        cps : int or list
+            Number of changepoints to seed or list of initial changepoints.
+        prior_cov : ndarray of shape (d,d)
+            Symmetric positive (semi)definite covariance matrix, 
+            for each segment of series.
+        n_iter : int
+            Number of iterations to run Gibbs sampler for each segment.
+        lam : float
+            Interpolation parameter for "uni-binomial" prior. Between 0 and 1.
+        min_size : int, optional
+            Minimum distance between changepoints. The default is 10.
 
         Returns
         -------
         None.
 
         """
+        if rng == None:
+            self.rng = np.random.default_rng()
+        else:
+            self.rng = rng
+        
+        assert type(self.rng) == np.random._generator.Generator
+        
         tcps  = type(cps)
         assert tcps == int or tcps == list
         
         if tcps == int:
             self.bkps = list(np.linspace(0, len(X), cps+2, dtype=np.int64))
         else:
-            self.bkps = [0] + cps + [len(X)]               
+            self.bkps = [0] + cps + [len(X)]              
         
         self.K = len(self.bkps)-2
+        self.n, self.p = X.shape
+        if np.floor(self.n/(2*self.K + 2)) <= min_size:
+            raise ValueError("min_size is too large for any changepoints to be estimated")
+            
         self.prior_cov = prior_cov
         self.n_iter = n_iter
         self.lam = lam
-        self.n, self.p = X.shape
         self.X = X
         self.transformed = False
         self.min_size = min_size
         
     def fit(self):
         """
-
+        Fit MultiBayesCC class, meaning implement the Gibbs sampler on each consecutive segment, 
+        according to the multiple changepoint formulation discussed for drawing posterior changepoints 
+        and coefficients in Thomas, Jauch, and Matteson (2025).
+    
         Returns
         -------
         None.
@@ -70,10 +84,12 @@ class MultiBayesCC:
                              self.prior_cov, self.n_iter, prior_kappa=self.prior_kappas[i])
                      for i in range(self.K)]
         for i in range(self.K):
-            self.bccs_[i].fit()
+            self.bccs_[i].fit(rng = self.rng)
     
     def transform(self):
         """
+        Calculate posterior distributions and summaries for each segment defined by the 
+        endpoints of ``bkps`` defined above. 
 
         Returns
         -------
@@ -95,24 +111,26 @@ class MultiBayesCC:
         self.transform()
         self.transformed = False
 
-    def cps_df(self, offset=0, thr=None):
+    def cps_df(self, thr=None, offset=0):
         """
-        Returns estimated changepoints (posterior modes), along with posterior 'probability', and normalized entropy. Values coded nan (removed due to  min_size constraints are not returned).
+        Returns estimated changepoints (posterior modes), along with posterior 'probability', and normalized entropy. 
+        Values coded nan (removed due to  ``min_size`` constraints are not returned). 
 
         Parameters
         ----------
-        offset : TYPE, optional
-            DESCRIPTION. The default is 0.
-        thr : TYPE. optional
-            DESCRIPTION. The default is None.
+        offset : float, optional
+            For use in time series with indexing representing time: e.g. years, etc. Adds this
+            value to the estimated changepoints. The default is 0.
+        thr : float, optional
+            Remove changepoints from DataFrame with normalized entropy greater than threshold.
+            Between 0 and 1. The default is None.
 
         Returns
         -------
-        df : TYPE
-            DESCRIPTION.
+        df : pandas.DataFrame
+            DataFrame with the above described information. 
 
         """
-        ### Add in functionality to restrict kappa_j - kappa_{j-1} > Delta with self.min_size
         bc_info = []
         prev = 0
         for i, bc in enumerate(self.bccs_):
@@ -134,18 +152,24 @@ class MultiBayesCC:
         else:
             return df_red[df_red['Normalized Entropy'] < thr]
     
-    def warm_up(self, n_iter_w=10, reps=1, max_iter=100):
+    def warm_up(self, n_iter_w=100, random_init=False, thr=None, reps=10):
         """
-        EDIT THIS 11/5/24
-        
+        Runs the chain with various initializations according to Section 6.1 of Thomas, Jauch, and Matteson (2025).
+        Argument thr can be useful for enhanced estimation ability by removing spurious changepoints. Resets ``bkps`` and
+        may reduce number of changepoints ``K``. 
+
         Parameters
         ----------
-        n_iter_w : TYPE, optional
-            DESCRIPTION. The default is 10.
-        reps : TYPE, optional
-            DESCRIPTION. The default is 1.
-        max_iter : TYPE, optional
-            DESCRIPTION. The default is 100.
+        n_iter_w : int, optional
+            Number of iterations to run each "warm-up" chain. The default is 100.
+        random_init : bool, optional
+            Whether or not to randomly choose ``bkps`` according to 
+            random sampling respecting ``min_size`` constraints. The default is False.
+        thr : float, optional
+            Remove changepoints with normalized entropy greater than threshold.
+            Between 0 and 1. The default is None.
+        reps : int, optional
+            Number of random initializations to try. Ignored if ``random_init``=False. The default is 10.
 
         Returns
         -------
@@ -154,50 +178,42 @@ class MultiBayesCC:
         """
         self.n_iter_init = self.n_iter
         self.n_iter = n_iter_w
-        best_n_entr = self.K
-        iter_tr = 0 
-        i = 0
-        while i < reps and iter_tr < max_iter:
-            iter_tr += 1
-            cps = list(sample_sep(self.n, self.K, delta=self.min_size).astype(np.int32))
-            self.bkps = [0] + cps
+        if random_init:
+            best_n_entr = self.K
+            i = 0
+            while i < reps:
+                cps = list(sample_sep(self.n, self.K, delta=self.min_size).astype(np.int32))
+                self.bkps = [0] + cps
+                self.proc()
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    cps_df = self.cps_df(thr)
+                entr_now = cps_df['Normalized Entropy'].sum()
+                cps_vals = [0] + list(cps_df['Location'].astype(np.int32)) + [self.n]
+                i += 1
+                if entr_now < best_n_entr:
+                    best_brk = cps_vals
+                    best_n_entr = entr_now
+            
+            self.bkps = best_brk
+            if len(best_brk)-2 < self.K:
+                warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
+                       category=SegmentationWarning, filename="bclr_multi.py", lineno=178)
+                self.K = len(best_brk)-2
+            
+        else:
             self.proc()
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                cps_df = self.cps_df()
-            entr_now = cps_df['Normalized Entropy'].sum()
-            cps_vals = [0] + list(cps_df['Location'].astype(np.int32)) + [self.n]
-            i += 1
-            if entr_now < best_n_entr:
-                best_brk = cps_vals
-                best_n_entr = entr_now
+                dfM = self.cps_df(thr)['Location']
+            dfM_nan = dfM[np.logical_not(np.isnan(dfM))]
+            self.bkps = [0] + list(dfM_nan.astype(np.int32)) + [self.n]
+            if len(dfM_nan) < self.K:
+                warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
+                              category=SegmentationWarning, filename="bclr_multi.py", lineno=192)
+                self.K = len(dfM_nan)
         
-        self.bkps = best_brk
-        if len(best_brk)-2 < self.K:
-            warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
-                   category=SegmentationWarning, filename="bclr_multi.py", lineno=173)
-            
-        self.K = len(best_brk)-2
         self.n_iter = self.n_iter_init
-            # try:
-            #     self.bkps = best_brk
-            # except UnboundLocalError:
-            #     warnings.warn_explicit(message="""Desired segmentation not found in desired number of reps and max_iter. Argument min_size may be too large. Setting random_init=False and re-running... \n""",
-            #                   category=SegmentationWarning, filename="bclr_multi.py", lineno=172)
-            #     self.proc()
-            #     self.bkps = list(np.linspace(0, self.n, self.K+2, dtype=np.int64))
-            
-        # else:
-        #     self.proc()
-        #     with warnings.catch_warnings():
-        #         warnings.simplefilter("ignore")
-        #         dfM = self.cps_df()['Location']
-        #     dfM_nan = dfM[np.logical_not(np.isnan(dfM))]
-        #     self.bkps = [0] + list(dfM_nan.astype(np.int32)) + [self.n]
-        #     if len(dfM_nan) < self.K:
-        #         warnings.warn_explicit(message="""Appropriate number of changepoints could not be found based on min_size constraints. Returning breakpoints found... \n""",
-        #                       category=SegmentationWarning, filename="bclr_multi.py", lineno=188)
-        #         self.K = len(dfM_nan)
         
         
         

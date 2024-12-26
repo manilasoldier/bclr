@@ -11,22 +11,22 @@ def sample_sep(n, k, delta=1):
 
     Parameters
     ----------
-    n : TYPE
-        DESCRIPTION.
-    k : TYPE
-        DESCRIPTION.
-    delta : TYPE, optional
-        DESCRIPTION. The default is 1.
+    n : int
+        Sequence length.
+    k : int
+        Number of values less than n to generate in interval [1, n).
+    delta : int, optional
+        Minimum distance. The default is 1.
 
     Raises
     ------
     ValueError
-        DESCRIPTION.
+        If it is not possible to satisfy spacing constraints.
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    ndarray of shape (k+1,)
+        k+1 random ordered values with distance at least delta between them.
 
     """
     if delta > n/(k+1):
@@ -66,16 +66,18 @@ def uni_binom(n, p, lam):
 
 def prob_mode(arr):
     """
+    Gets mode of given array. Gives error based on ``bclr_multi`` if
+    min_size constraints yield an empty array which is fed to this function.
 
     Parameters
     ----------
-    arr : TYPE
-        DESCRIPTION.
+    arr : ndarray of shape (n_obs,)
+        Array of observed numbers (need not be integers).
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    ndarray
+        Returns array of mode(s)..
 
     """
     arr_vals, arr_counts = np.unique(arr, return_counts=True)
