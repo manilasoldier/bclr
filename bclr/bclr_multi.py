@@ -152,6 +152,30 @@ class MultiBayesCC:
         else:
             return df_red[df_red['Normalized Entropy'] < thr]
     
+    def predict(self, iter_sch = [100, 250], thr_sch = [0.75, 0.5]):
+        """
+        Predict changepoints after two successive warm-up periods of increasing "complexity".
+
+        Parameters
+        ----------
+        iter_sch : list of increasing positive int, optional
+            List of increasing number of iterations to run Gibbs sampler in first two warm-up periods. 
+            The default is [100, 250].
+        thr_sch : List of decreasing float between 0 and 1, optional
+            List of decreasing entropy thresholds. The default is [0.75, 0.5].
+
+        Returns
+        -------
+        pd.DataFrame
+            Estimated changepoints, posterior probability and normalized entropy.
+
+        """
+        self.warm_up(n_iter_w=iter_sch[0], thr=thr_sch[0])
+        self.warm_up(n_iter_w=iter_sch[1], thr=thr_sch[1])
+        self.fit()
+        self.transform()
+        return self.cps_df()
+    
     def warm_up(self, n_iter_w=100, random_init=False, thr=None, reps=10):
         """
         Runs the chain with various initializations according to Section 6.1 of Thomas, Jauch, and Matteson (2025).
