@@ -13,7 +13,7 @@ class MultiBayesCC:
     uncertainty and the best representation of said changepoint. This uses the dynamic programming implementation in the ruptures package.
 
     """
-    def __init__(self, X, cps, prior_cov, n_iter=1000, lam=0, min_size=10, rng = None):
+    def __init__(self, X, cps, prior_cov, n_iter=1000, lam=0, min_size=10, rng = None, warnings=True):
         """
 
         Parameters
@@ -21,7 +21,9 @@ class MultiBayesCC:
         X : array-like of shape n x d
             Array of n d-dimensional vectors to assess changepoints.
         cps : int or list
-            Number of changepoints to seed or list of initial changepoints.
+            Number of changepoints to seed or list of initial changepoints. 
+            If list of changepoints given, note that it should be in terms of the indices
+            series {, 2, ..., len(X)}.
         prior_cov : ndarray of shape (d,d)
             Symmetric positive (semi)definite covariance matrix, 
             for each segment of series.
@@ -31,6 +33,10 @@ class MultiBayesCC:
             Interpolation parameter for "uni-binomial" prior. Between 0 and 1.
         min_size : int, optional
             Minimum distance between changepoints. The default is 10.
+        rng : np.random._generator.Generator, optional
+            Random number generator to ensure reproducibility. The default is None.
+        warnings : bool, optional
+            If False, suppress warnings. 
 
         Returns
         -------
@@ -63,6 +69,7 @@ class MultiBayesCC:
         self.X = X
         self.transformed = False
         self.min_size = min_size
+        self.warnings = warnings
         
     def fit(self):
         """
@@ -100,7 +107,6 @@ class MultiBayesCC:
             pass
         else:
             for i in range(self.K):
-                #verify that this is how its supposed to work...
                 self.bccs_[i].post_k = self.bccs_[i].post_k+self.bkps[i]
                 self.bccs_[i].transform(verbose=False)
         
@@ -140,7 +146,7 @@ class MultiBayesCC:
                     pass
                 else:
                     prev = pot
-                mode_val = prob_mode(bc.post_k[np.logical_and(bc.post_k > prev-offset + self.min_size, bc.post_k < self.bkps[i+2]-self.min_size)])
+                mode_val = prob_mode(bc.post_k[np.logical_and(bc.post_k >= prev-offset + self.min_size, bc.post_k <= self.bkps[i+2]-self.min_size)])
                 bc_info.append((mode_val+offset, bc.post_mode_prob, bc.norm_entr))
             else:
                 bc_info.append((bc.post_k_mode+offset, bc.post_mode_prob, bc.norm_entr))
@@ -152,7 +158,7 @@ class MultiBayesCC:
         else:
             return df_red[df_red['Normalized Entropy'] < thr]
     
-    def fit_predict(self, iter_sch = [100, 250], thr_sch = [0.75, 0.5], offset=0):
+    def fit_predict(self, iter_sch = [200, 500], thr_sch = [0.75, 0.5], offset=0):
         """
         Predict changepoints after two successive warm-up periods of increasing "complexity".
 
@@ -175,6 +181,18 @@ class MultiBayesCC:
         self.fit()
         self.transform()
         return self.cps_df(offset=offset)
+    
+    def fit_transform(self):
+        """
+        Fits, then transforms.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.fit()
+        self.transform()
     
     def warm_up(self, n_iter_w=100, random_init=False, thr=None, reps=10):
         """
@@ -221,8 +239,9 @@ class MultiBayesCC:
             
             self.bkps = best_brk
             if len(best_brk)-2 < self.K:
-                warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
-                       category=SegmentationWarning, filename="bclr_multi.py", lineno=178)
+                if self.warnings:
+                    warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
+                        category=SegmentationWarning, filename="bclr_multi.py", lineno=178)
                 self.K = len(best_brk)-2
             
         else:
@@ -233,7 +252,8 @@ class MultiBayesCC:
             dfM_nan = dfM[np.logical_not(np.isnan(dfM))]
             self.bkps = [0] + list(dfM_nan.astype(np.int32)) + [self.n]
             if len(dfM_nan) < self.K:
-                warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
+                if self.warnings:
+                    warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
                               category=SegmentationWarning, filename="bclr_multi.py", lineno=192)
                 self.K = len(dfM_nan)
         

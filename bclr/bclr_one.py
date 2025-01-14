@@ -77,7 +77,7 @@ class BayesCC:
         self.n_iter = n_iter
         self.burn_in = int(burn_in)
     
-    def fit(self, init_k = None, init_beta = None, small_probs = True, tol = 1e-4, c = 1e-2, rng = None):
+    def fit(self, init_k = None, init_beta = None, small_probs = True, tol = 1e-12, c = 1e-2, rng = None):
         """
         Fit BayesCC class, meaning implement the Gibbs sampler discussed for drawing posterior changepoints and coefficients in 
         Thomas, Jauch, and Matteson (2025).
@@ -150,6 +150,7 @@ class BayesCC:
                 k_pvec = k_lpvec/np.sum(k_lpvec)
             
             self.k_draws_[t] = rng.choice(np.arange(1, self.n), size=1, p=k_pvec)
+
             
         self.post_k = self.k_draws_[self.burn_in:]
         self.post_beta = self.beta_draws_[self.burn_in:, :]
