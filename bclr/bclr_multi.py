@@ -158,7 +158,7 @@ class MultiBayesCC:
         else:
             return df_red[df_red['Normalized Entropy'] < thr]
     
-    def fit_predict(self, iter_sch = [200, 500], thr_sch = [0.75, 0.5], offset=0):
+    def fit_predict(self, iter_sch = [100, 250], thr_sch = [0.75, 0.5], offset=0):
         """
         Predict changepoints after two successive warm-up periods of increasing "complexity".
 

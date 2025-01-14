@@ -10,6 +10,3 @@
 
 - Multiple changepoint convenience functions (e.g. fit_predict, fit_transform, etc...)
 
-### Changed
-
-- `iter_sch` default from [100, 250] to [200, 500]

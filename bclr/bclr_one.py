@@ -26,10 +26,11 @@ class BayesCC:
             Array containing prior mean of Normal distribution.
         prior_cov : ndarray of shape (d,d)
             Symmetric positive (semi)definite covariance matrix. 
-        prior_kappa : ndarray of length n-1 nonnegative values.
-            Prior distribution for the changepoint kappa. 
         n_iter : int
             Number of iterations to run Gibbs sampler. 
+        prior_kappa : ndarray of length n-1 nonnegative values.
+            Prior distribution for the changepoint kappa. 
+            The default is None (i.e. uniform).
         scaled : bool, optional
             If False, each column of data will be mean centered and 
             standardized to have variance 1. The default is False.
@@ -90,6 +91,17 @@ class BayesCC:
         init_beta : array_like of shape (d,) (where d is dimensionality of the data), optional
             Initial value of the coefficient vector beta. The default is None, in which case it is set to be equal 
             to the all zero coefficient vector.
+        small_probs : bool, optional
+            Whether to accommodate small probabilties into the algorithm (and utilize a smallest possible probability c).
+            The default is True.
+        tol : float, optional
+            Value below which to ignore kappa prior probabiltiies. Should be positive.
+            The default is 1e-12.
+        c : float, optional
+            Value at which to set the smallest possible non-zero 'probability'. Should be positive.
+            The default is 1e-2. 
+        rng : np.random._generator.Generator, optional
+            Random number generator to ensure reproducibility. The default is None.
             
         Returns
         -------
@@ -203,6 +215,8 @@ class BayesCC:
         check_is_fitted(self)
         bins = np.arange(1, self.n+1)
         plt.hist(self.post_k, rwidth=0.9, density=True, align='left', bins=bins)
+        plt.ylabel("Posterior probability")
+        plt.xlabel(r"$\kappa$")
         plt.show()
         
     
