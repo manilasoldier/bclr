@@ -198,6 +198,7 @@ class BayesCC:
         self.post_k_mode = post_k_vals[np.argmax(post_k_counts)]
         self.post_mode_prob = np.max(arr)
         self.post_beta_mean = np.mean(self.post_beta, axis=0)
+        self.post_beta_snr = (self.post_beta_mean)**2/np.var(self.post_beta, axis=0)
         
         if verbose:
             table = [post_k_vals, post_k_counts/(self.n_iter-self.burn_in)]
