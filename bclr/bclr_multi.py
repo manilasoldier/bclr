@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from .bclr_one import BayesCC
-from .bclr_helper import uni_binom, prob_mode, SegmentationWarning, sample_sep
+from .bclr_helper import uni_binom, prob_mode, SegmentationWarning, _proc_cov
 import warnings
 
 inv = np.linalg.inv
@@ -15,7 +15,7 @@ class MultiBayesCC:
     """
     def __init__(self, X, cps, prior_cov, n_iter=1000, lam=0, min_size=10, rng = None, warnings=True):
         """
-
+        
         Parameters
         ----------
         X : array-like of shape n x d
@@ -23,7 +23,7 @@ class MultiBayesCC:
         cps : int or list
             Number of changepoints to seed or list of initial changepoints. 
             If list of changepoints given, note that it should be in terms of the indices
-            series {, 2, ..., len(X)}.
+            series {1, 2, ..., len(X)}.
         prior_cov : ndarray of shape (d,d)
             Symmetric positive (semi)definite covariance matrix, 
             for each segment of series.
@@ -48,10 +48,12 @@ class MultiBayesCC:
         else:
             self.rng = rng
         
-        assert type(self.rng) == np.random._generator.Generator
+        if not type(self.rng) == np.random._generator.Generator:
+            raise TypeError("rng should be of type np.random._generator.Generator")
         
         tcps  = type(cps)
-        assert tcps == int or tcps == list
+        if not (tcps == int or tcps == list):
+            raise TypeError("cps should be an integer or a list of changepoint locations")
         
         if tcps == int:
             self.bkps = list(np.linspace(0, len(X), cps+2, dtype=np.int64))
@@ -63,12 +65,23 @@ class MultiBayesCC:
         if np.floor(self.n/(2*self.K + 2)) <= min_size:
             raise ValueError("min_size is too large for any changepoints to be estimated")
             
-        self.prior_cov = prior_cov
+        if n_iter <= 0:
+            raise ValueError("Number of MC iterations should be positive")
+        self.prior_cov = _proc_cov(prior_cov, self.p)
         self.n_iter = n_iter
-        self.lam = lam
+        
+        if lam < 0 or lam > 1:
+            raise ValueError("Lambda must be nonnegative and no greater than 1")
+        else:
+            self.lam = lam
+        
         self.X = X
         self.transformed = False
-        self.min_size = min_size
+        
+        if min_size <= 1:
+            raise ValueError("min_size should be greater than 1")
+
+        self.min_size = int(min_size)
         self.warnings = warnings
         
     def fit(self):
@@ -137,6 +150,7 @@ class MultiBayesCC:
             DataFrame with the above described information. 
 
         """
+        
         bc_info = []
         prev = 0
         for i, bc in enumerate(self.bccs_):
@@ -156,7 +170,10 @@ class MultiBayesCC:
         if thr is None:
             return df_red
         else:
-            return df_red[df_red['Normalized Entropy'] < thr]
+            if thr < 0 or thr > 1:
+                raise ValueError("Threshold thr should be between 0 and 1 (inclusive)")
+            else:
+                return df_red[df_red['Normalized Entropy'] < thr]
     
     def fit_predict(self, iter_sch = [100, 250], thr_sch = [0.75, 0.5], offset=0):
         """
@@ -176,6 +193,9 @@ class MultiBayesCC:
             Estimated changepoints, posterior probability and normalized entropy.
 
         """
+        if len(iter_sch) != 2 or len(thr_sch) != 2:
+            raise ValueError("Please ensure iter_sch and thr_sch are both of length 2")
+        
         self.warm_up(n_iter_w=iter_sch[0], thr=thr_sch[0])
         self.warm_up(n_iter_w=iter_sch[1], thr=thr_sch[1])
         self.fit()
@@ -194,68 +214,40 @@ class MultiBayesCC:
         self.fit()
         self.transform()
     
-    def warm_up(self, n_iter_w=100, random_init=False, thr=None, reps=10):
+    def warm_up(self, n_iter_w=100, thr=None):
         """
         Runs the chain with various initializations according to Section 6.1 of Thomas, Jauch, and Matteson (2025).
         Argument thr can be useful for enhanced estimation ability by removing spurious changepoints. Resets ``bkps`` and
-        may reduce number of changepoints ``K``. 
+        may reduce number of changepoints ``J``. 
 
         Parameters
         ----------
         n_iter_w : int, optional
-            Number of iterations to run each "warm-up" chain. The default is 100.
-        random_init : bool, optional
-            Whether or not to randomly choose ``bkps`` according to 
-            random sampling respecting ``min_size`` constraints. The default is False.
+            Number of iterations to run each "warm-up" chain. The default is 100 and the minimum value is 50.
         thr : float, optional
             Remove changepoints with normalized entropy greater than threshold.
             Between 0 and 1. The default is None.
-        reps : int, optional
-            Number of random initializations to try. Ignored if ``random_init``=False. The default is 10.
 
         Returns
         -------
         None.
 
         """
+        n_iter_w = int(max(50, n_iter_w))
         self.n_iter_init = self.n_iter
         self.n_iter = n_iter_w
-        if random_init:
-            best_n_entr = self.K
-            i = 0
-            while i < reps:
-                cps = list(sample_sep(self.n, self.K, delta=self.min_size).astype(np.int32))
-                self.bkps = [0] + cps
-                self.proc()
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    cps_df = self.cps_df(thr)
-                entr_now = cps_df['Normalized Entropy'].sum()
-                cps_vals = [0] + list(cps_df['Location'].astype(np.int32)) + [self.n]
-                i += 1
-                if entr_now < best_n_entr:
-                    best_brk = cps_vals
-                    best_n_entr = entr_now
             
-            self.bkps = best_brk
-            if len(best_brk)-2 < self.K:
-                if self.warnings:
-                    warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
-                        category=SegmentationWarning, filename="bclr_multi.py", lineno=178)
-                self.K = len(best_brk)-2
-            
-        else:
-            self.proc()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                dfM = self.cps_df(thr)['Location']
-            dfM_nan = dfM[np.logical_not(np.isnan(dfM))]
-            self.bkps = [0] + list(dfM_nan.astype(np.int32)) + [self.n]
-            if len(dfM_nan) < self.K:
-                if self.warnings:
-                    warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
-                              category=SegmentationWarning, filename="bclr_multi.py", lineno=192)
-                self.K = len(dfM_nan)
+        self.proc()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            dfM = self.cps_df(thr)['Location']
+        dfM_nan = dfM[np.logical_not(np.isnan(dfM))]
+        self.bkps = [0] + list(dfM_nan.astype(np.int32)) + [self.n]
+        if len(dfM_nan) < self.K:
+            if self.warnings:
+                warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
+                          category=SegmentationWarning, filename="bclr_multi.py", lineno=246)
+            self.K = len(dfM_nan)
         
         self.n_iter = self.n_iter_init
         

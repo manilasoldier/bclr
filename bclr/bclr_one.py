@@ -5,6 +5,7 @@ from polyagamma import random_polyagamma
 from scipy.stats import multivariate_normal
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.validation import check_is_fitted
+from .bclr_helper import _proc_mean_cov
 
 inv = np.linalg.inv
 det = np.linalg.det
@@ -25,7 +26,7 @@ class BayesCC:
         prior_mean : ndarray of length d
             Array containing prior mean of Normal distribution.
         prior_cov : ndarray of shape (d,d)
-            Symmetric positive (semi)definite covariance matrix. 
+            Symmetric positive (semi)definite prior covariance matrix. 
         n_iter : int
             Number of iterations to run Gibbs sampler. 
         prior_kappa : ndarray of length n-1 nonnegative values.
@@ -41,14 +42,14 @@ class BayesCC:
         Raises
         ------
         ValueError
-            Array must be two-dimensional.
+            Data array must be two-dimensional.
 
         Returns
         -------
         None.
 
         """
-        if len(X.shape) > 2: 
+        if len(X.shape) != 2: 
             raise ValueError("Array must be 2-dimensional")
     
         self.n, self.p = X.shape
@@ -60,12 +61,19 @@ class BayesCC:
         else: 
             self.X = X
         self.scaled = scaled
-            
+        
+        if n_iter <= 0:
+            raise ValueError("Number of MC iterations should be positive")
+        
         if burn_in == None:
             burn_in = n_iter/2
+        elif burn_in <= 0:
+            raise ValueError("burn_in should take only positive values")
+        elif burn_in > n_iter:
+            raise ValueError("burn_in should be smaller than n_iter")
+
+        self.prior_mean, self.prior_cov = _proc_mean_cov(prior_mean, prior_cov, self.p)
             
-        self.prior_mean = prior_mean
-        self.prior_cov = prior_cov
         if prior_kappa is None:
             self.prior_kappa = np.repeat(1, self.n-1)
         else:
@@ -78,7 +86,7 @@ class BayesCC:
         self.n_iter = n_iter
         self.burn_in = int(burn_in)
     
-    def fit(self, init_k = None, init_beta = None, small_probs = True, tol = 1e-12, c = 1e-2, rng = None):
+    def fit(self, init_k = None, init_beta = None, tol = 1e-12, c = 1e-2, rng = None):
         """
         Fit BayesCC class, meaning implement the Gibbs sampler discussed for drawing posterior changepoints and coefficients in 
         Thomas, Jauch, and Matteson (2025).
@@ -91,9 +99,6 @@ class BayesCC:
         init_beta : array_like of shape (d,) (where d is dimensionality of the data), optional
             Initial value of the coefficient vector beta. The default is None, in which case it is set to be equal 
             to the all zero coefficient vector.
-        small_probs : bool, optional
-            Whether to accommodate small probabilties into the algorithm (and utilize a smallest possible probability c).
-            The default is True.
         tol : float, optional
             Value below which to ignore kappa prior probabiltiies. Should be positive.
             The default is 1e-12.
@@ -140,28 +145,21 @@ class BayesCC:
             logk_lpvec = np.zeros(self.n-1)
             prior_kappa_pos = np.where(self.prior_kappa > tol)[0]
             
-            if small_probs:
-                logk_lpvec[prior_kappa_pos[0]] = np.log(c)
-                for k in range(1,len(prior_kappa_pos)):
-                    k1 = prior_kappa_pos[k]
-                    k0 = prior_kappa_pos[k-1]
-                    logk_lpvec[k1] = logk_lpvec[k0] - self.X[k1,:] @ self.beta_draws_[t,None].T + np.log(self.prior_kappa[k1]) - np.log(self.prior_kappa[k0])
-                
-                v = np.max(logk_lpvec)
-                # to avoid overflow, we truncate log posterior kappa values to 100
-                if v > 100:
-                    logk_lpvec = logk_lpvec - v + 100
-                    
-                k_lpvec = np.exp(logk_lpvec)
-                k_pvec = k_lpvec/np.sum(k_lpvec)
-                
-            else:
-                y_pvec = 1/(1+np.exp(np.squeeze(-self.X @ self.beta_draws_[t,None].T)))
-                for k in range(self.n-1):
-                    k_lpvec[k] = np.prod(1-y_pvec[:(k+1)])*np.prod(y_pvec[(k+1):])*self.prior_kappa[k]
-                k_pvec = k_lpvec/np.sum(k_lpvec)
+            logk_lpvec[prior_kappa_pos[0]] = np.log(c)
+            for k in range(1,len(prior_kappa_pos)):
+                k1 = prior_kappa_pos[k]
+                k0 = prior_kappa_pos[k-1]
+                logk_lpvec[k1] = logk_lpvec[k0] - (self.X[k1,:] @ self.beta_draws_[t,None].T)[0] + np.log(self.prior_kappa[k1]) - np.log(self.prior_kappa[k0])
             
-            self.k_draws_[t] = rng.choice(np.arange(1, self.n), size=1, p=k_pvec)
+            v = np.max(logk_lpvec)
+            # to avoid overflow, we truncate log posterior kappa values to 100
+            if v > 100:
+                logk_lpvec = logk_lpvec - v + 100
+                
+            k_lpvec = np.exp(logk_lpvec)
+            k_pvec = k_lpvec/np.sum(k_lpvec)
+            
+            self.k_draws_[t] = rng.choice(np.arange(1, self.n), size=1, p=k_pvec)[0]
 
             
         self.post_k = self.k_draws_[self.burn_in:]
@@ -214,7 +212,7 @@ class BayesCC:
 
         """
         check_is_fitted(self)
-        bins = np.arange(1, self.n+1)
+        bins = np.arange(1, self.n)
         plt.hist(self.post_k, rwidth=0.9, density=True, align='left', bins=bins)
         plt.ylabel("Posterior probability")
         plt.xlabel(r"$\kappa$")

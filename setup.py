@@ -15,7 +15,7 @@ setup(
 	'matplotlib',
 	'pandas',
 	'numpy',
-	'detectda >= 0.4.5',
+	'detectda >= 0.5.3',
 	'joblib',
 	'tabulate',
 	'scikit-learn >= 1.3.0',

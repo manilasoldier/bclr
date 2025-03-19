@@ -15,7 +15,7 @@ bclr/bclr_detectda.py
 slope_heuristic.ipynb
 bclr_multi_examples_test.ipynb
 cet_*
-
+test_bclr.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

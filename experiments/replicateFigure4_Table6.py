@@ -1,6 +1,9 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+try:
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+except ImportError:
+    print("Please ensure pandas, numpy, and matplotlib are installed...")
 
 if __name__ == "__main__":
     names_exp3A_df = ['cp_bcc', 'bcc_x1', 'bcc_x2', 'bcc_x3', 'bcc_x4', 'bcc_x1sq', 'bcc_x1x2', 'bcc_x1x3',

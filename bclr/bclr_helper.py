@@ -5,35 +5,85 @@ import warnings
 class SegmentationWarning(Warning):
     pass
 
-def sample_sep(n, k, delta=1):
+def _proc_cov(prior_cov, p):
     """
-    Generates k+1 ordered random values with minimum distance delta between them. Note the last value is n.
+    Process covariance matrix to ensure it is valid and convert it to np.ndarray.
 
     Parameters
     ----------
-    n : int
-        Sequence length.
-    k : int
-        Number of values less than n to generate in interval [1, n).
-    delta : int, optional
-        Minimum distance. The default is 1.
+    prior_cov : ndarray of shape (d,d)
+        Symmetric positive (semi)definite prior covariance matrix. 
+    p : int
+        Integer corresponding to data dimension.
 
     Raises
     ------
     ValueError
-        If it is not possible to satisfy spacing constraints.
+        If prior_cov is invalid, raise error.
 
     Returns
     -------
-    ndarray of shape (k+1,)
-        k+1 random ordered values with distance at least delta between them.
+    prior_cov : np.ndarray of shape (d,d)
+        Symmetric positive (semi)definite prior covariance matrix. 
 
     """
-    if delta > n/(k+1):
-        raise ValueError("Minimum distance spacing requirements cannot be satisfied.")
-    rem = np.random.choice(np.arange(1, k+2), n-delta*(k+1))
-    counts, _ = np.histogram(rem, np.arange(1, k+3))
-    return np.cumsum(counts + delta)
+    prior_cov = np.array(prior_cov)
+    dim = prior_cov.shape[0]
+    if dim != p:
+        msg_dim = (f"Data is {p}-dimensional but prior covariance matrix is {dim}x{dim}."
+                       f" Please specify a {p}x{p} prior covariance matrix")
+        raise ValueError(msg_dim)
+    
+    msg_sym = "Prior covariance matrix should be symmetric"
+    if dim != prior_cov.shape[1]:
+        raise ValueError(msg_sym)
+    elif not np.all(np.isclose(prior_cov, prior_cov.T)):
+        raise ValueError(msg_sym)
+    
+    if np.any(np.linalg.eigvals(prior_cov) < 0):
+        raise ValueError("Prior covariance matrix must be positive semi-definite")
+    
+    return prior_cov
+
+def _proc_mean_cov(prior_mean, prior_cov, p):
+    """
+    Process mean and covariance to ensure they are valid and convert them to np.ndarray.
+
+    Parameters
+    ----------
+    prior_mean : ndarray of length d
+        Array containing prior mean of Normal distribution.
+    prior_cov : ndarray of shape (d,d)
+        Symmetric positive (semi)definite prior covariance matrix. 
+    p : int
+        Integer corresponding to dimension of data.
+
+    Raises
+    ------
+    ValueError
+        If prior_mean and prior_cov are invalid, raise error.
+
+    Returns
+    -------
+    prior_mean : np.ndarray of length d
+        Array containing prior mean of Normal distribution.
+    prior_cov : np.ndarray of shape (d,d)
+        Symmetric positive (semi)definite prior covariance matrix. 
+
+    """
+    prior_mean = np.array(prior_mean)
+    prior_cov = _proc_cov(prior_cov, p)
+    
+    l = len(prior_mean)
+    if l == p:
+        prior_mean = np.array(prior_mean)
+        if len(prior_mean.shape) > 1:
+            raise ValueError("Prior mean vector should be one-dimensional")
+    else:
+        msg_len = (f"Prior mean has length {l} but should have length {p} based on the dimension of the data")
+        raise ValueError(msg_len)
+        
+    return prior_mean, prior_cov
         
     
 def uni_binom(n, p, lam):
