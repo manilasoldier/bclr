@@ -1,4 +1,4 @@
-# <code>bclr</code>
+# BCLR
 
 A package for <b>B</b>ayesian <b>C</b>hangepoint detection via <b>L</b>ogistic <b>R</b>egression.
 
@@ -26,19 +26,12 @@ or run
 $ pip install git+https://github.com/manilasoldier/bclr.git
 ```
 
-## Information on the package
-
-Brief tutorials (as well as replication of some of our experiemnts can be seen in <code>bclr_examples.ipynb</code> and <code>bclr_multi_examples.ipynb</code> for the single and multiple changepoint settings. The experiments folder contains the code necessary to replicate some of our experiments. However, not all of the data is available for Experiments 1 and 2 because of size constraints. It can be made available upon request.
-
-
 ## Running the code
-
 
 ```python
 import bclr
 import numpy as np
 ```
-
 
 ```python
 np.random.seed(800037)
@@ -71,12 +64,8 @@ bclrS.transform(verbose=False)
 ```python
 bclrS.plot_k()
 ```
-
-
-    
-![png](output_9_0.png)
-    
-
+ 
+![png](https://raw.githubusercontent.com/manilasoldier/bclr/refs/heads/master/output_9_0.png)
 
 ### Multiple changepoint setup
 
