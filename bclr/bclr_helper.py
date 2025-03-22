@@ -74,13 +74,13 @@ def _proc_mean_cov(prior_mean, prior_cov, p):
     prior_mean = np.array(prior_mean)
     prior_cov = _proc_cov(prior_cov, p)
     
-    l = len(prior_mean)
-    if l == p:
+    prior_len = len(prior_mean)
+    if prior_len == p:
         prior_mean = np.array(prior_mean)
         if len(prior_mean.shape) > 1:
             raise ValueError("Prior mean vector should be one-dimensional")
     else:
-        msg_len = (f"Prior mean has length {l} but should have length {p} based on the dimension of the data")
+        msg_len = (f"Prior mean has length {prior_len} but should have length {p} based on the dimension of the data")
         raise ValueError(msg_len)
         
     return prior_mean, prior_cov

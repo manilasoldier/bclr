@@ -65,7 +65,7 @@ class BayesCC:
         if n_iter <= 0:
             raise ValueError("Number of MC iterations should be positive")
         
-        if burn_in == None:
+        if burn_in is None:
             burn_in = n_iter/2
         elif burn_in <= 0:
             raise ValueError("burn_in should take only positive values")
@@ -114,10 +114,10 @@ class BayesCC:
 
         """
         
-        if rng == None:
+        if rng is None:
             rng = np.random.default_rng()
         
-        if init_k == None:
+        if init_k is None:
             init_k = self.n/2
         
         if init_beta is None:

@@ -1,5 +1,7 @@
 # <code>bclr</code>
 
+![PyPI - Version](https://img.shields.io/pypi/v/bclr) [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/713178981a7b41b787ada8a1ffe1dee1)](https://app.codacy.com/gh/manilasoldier/bclr/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
+
 A package for <b>B</b>ayesian <b>C</b>hangepoint detection via <b>L</b>ogistic <b>R</b>egression.
 
 These methods were developed in [Thomas, Jauch, and Matteson (2025)](https://arxiv.org/abs/2401.02917).

@@ -43,19 +43,19 @@ class MultiBayesCC:
         None.
 
         """
-        if rng == None:
+        if rng is None:
             self.rng = np.random.default_rng()
         else:
             self.rng = rng
         
-        if not type(self.rng) == np.random._generator.Generator:
+        if not isinstance(self.rng, np.random._generator.Generator):
             raise TypeError("rng should be of type np.random._generator.Generator")
         
         tcps  = type(cps)
-        if not (tcps == int or tcps == list):
+        if not (tcps is int or tcps is list):
             raise TypeError("cps should be an integer or a list of changepoint locations")
         
-        if tcps == int:
+        if tcps is int:
             self.bkps = list(np.linspace(0, len(X), cps+2, dtype=np.int64))
         else:
             self.bkps = [0] + cps + [len(X)]              
