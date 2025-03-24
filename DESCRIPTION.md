@@ -1,4 +1,4 @@
-# BCLR
+![bclr logo](https://raw.githubusercontent.com/manilasoldier/bclr/refs/heads/master/bclr_logo.png)
 
 A package for <b>B</b>ayesian <b>C</b>hangepoint detection via <b>L</b>ogistic <b>R</b>egression.
 
