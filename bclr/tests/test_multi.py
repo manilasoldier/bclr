@@ -20,7 +20,7 @@ def test_bad_cov(prior_covBAD):
 
 def test_fit_transform_cps():
     bclr_multi_good = MultiBayesCC(Xm, cps=2, prior_cov = prior_cov, n_iter=1000)
-    bclr_multi_good.fit_transform()
+    bclr_multi_good.fit_transform(n_jobs=4) #check the n_jobs argument works...
     bclr_multi_good.transform() #check additional transform does nothing...
     est_cps = bclr_multi_good.cps_df()['Location'].to_numpy()
     np.testing.assert_almost_equal(est_cps, np.array([200, 500]), 2)

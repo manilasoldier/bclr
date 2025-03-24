@@ -9,13 +9,13 @@ from .bclr_helper import _proc_mean_cov
 
 inv = np.linalg.inv
 det = np.linalg.det
-    
+
 class BayesCC:
     """
     This class implements the Bayesian Changepoint via Logistic Regression (bclr) method 
     described in Thomas, Jauch, and Matteson (2023).
     """
-    def __init__(self, X, prior_mean, prior_cov, n_iter, 
+    def __init__(self, X, prior_mean, prior_cov, n_iter,
                  prior_kappa=None, scaled=False, burn_in=None):
         """
 
@@ -49,7 +49,7 @@ class BayesCC:
         None.
 
         """
-        if len(X.shape) != 2: 
+        if len(X.shape) != 2:
             raise ValueError("Array must be 2-dimensional")
     
         self.n, self.p = X.shape
@@ -58,7 +58,7 @@ class BayesCC:
             self.std_sc = StandardScaler()
             self.std_sc.fit(X)
             self.X = self.std_sc.transform(X)
-        else: 
+        else:
             self.X = X
         self.scaled = scaled
         
@@ -116,6 +116,11 @@ class BayesCC:
         
         if rng is None:
             rng = np.random.default_rng()
+        else:
+            rng = rng
+        
+        if not isinstance(rng, np.random._generator.Generator):
+            raise TypeError("rng should be of type np.random._generator.Generator")
         
         if init_k is None:
             init_k = self.n/2

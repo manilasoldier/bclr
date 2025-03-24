@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.3 (3/??/25)
+
+### Added
+
+- Parallelization for MultiBayesCC via joblib
+
+### Fixed
+
+- Cleaned up code (removed whitespace, etc.)
+
 ## v0.3.2 (3/19/25)
 
 ### Added
@@ -27,4 +37,3 @@
 ### Added 
 
 - Multiple changepoint convenience functions (e.g. fit_predict, fit_transform, etc...)
-

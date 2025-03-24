@@ -84,6 +84,29 @@ def _proc_mean_cov(prior_mean, prior_cov, p):
         raise ValueError(msg_len)
         
     return prior_mean, prior_cov
+
+def _fit_Class(fittable, rng, *args):
+    """
+    Return fitted object of class "fittable".
+    
+    Parameters
+    ----------
+    fittable : class
+        An object of class fittable
+    rng : np.random._generator.Generator, optional
+        Random number generator to ensure reproducibility. The default is None.
+    *args : extra arguments
+        Arguments to be given to __init__ method of fittable object.
+
+    Returns
+    -------
+    obj : fittable
+        Fitted object of class "fittable".
+
+    """
+    obj = fittable(*args)
+    obj.fit(rng=rng)
+    return obj
         
     
 def uni_binom(n, p, lam):

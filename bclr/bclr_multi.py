@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 from .bclr_one import BayesCC
-from .bclr_helper import uni_binom, prob_mode, SegmentationWarning, _proc_cov
+from .bclr_helper import uni_binom, prob_mode, SegmentationWarning, _proc_cov, _fit_Class
+from joblib import Parallel, delayed
 import warnings
 
 inv = np.linalg.inv
@@ -13,7 +14,8 @@ class MultiBayesCC:
     uncertainty and the best representation of said changepoint. This uses the dynamic programming implementation in the ruptures package.
 
     """
-    def __init__(self, X, cps, prior_cov, n_iter=1000, lam=0, min_size=10, rng = None, warnings=True):
+    def __init__(self, X, cps, prior_cov, n_iter=1000, lam=0,
+                 min_size=10, rng = None, warnings=True):
         """
         
         Parameters
@@ -58,7 +60,7 @@ class MultiBayesCC:
         if tcps is int:
             self.bkps = list(np.linspace(0, len(X), cps+2, dtype=np.int64))
         else:
-            self.bkps = [0] + cps + [len(X)]              
+            self.bkps = [0] + cps + [len(X)]
         
         self.K = len(self.bkps)-2
         self.n, self.p = X.shape
@@ -84,12 +86,19 @@ class MultiBayesCC:
         self.min_size = int(min_size)
         self.warnings = warnings
         
-    def fit(self):
+    def fit(self, n_jobs=None):
         """
         Fit MultiBayesCC class, meaning implement the Gibbs sampler on each consecutive segment, 
         according to the multiple changepoint formulation discussed for drawing posterior changepoints 
         and coefficients in Thomas, Jauch, and Matteson (2025).
-    
+
+        Parameters
+        ----------
+        n_jobs : int or None, optional, default is ``None``
+                The number of jobs to use for the computation. ``None`` means 1 unless
+                in a :obj:`joblib.parallel_backend` context. ``-1`` means using all
+                processors.
+
         Returns
         -------
         None.
@@ -97,14 +106,14 @@ class MultiBayesCC:
         """
         prior_mean = np.repeat(0, self.p)
         self.transformed = False
-        self.prior_kappas = [uni_binom(n=self.bkps[i+2]-self.bkps[i]-1, 
-                                       p=(self.bkps[i+1]-self.bkps[i])/(self.bkps[i+2]-self.bkps[i]), 
+        self.prior_kappas = [uni_binom(n=self.bkps[i+2]-self.bkps[i]-1,
+                                       p=(self.bkps[i+1]-self.bkps[i])/(self.bkps[i+2]-self.bkps[i]),
                                        lam=self.lam) for i in range(self.K)]
-        self.bccs_ = [BayesCC(self.X[self.bkps[i]:self.bkps[i+2], :], prior_mean, 
-                             self.prior_cov, self.n_iter, prior_kappa=self.prior_kappas[i])
-                     for i in range(self.K)]
-        for i in range(self.K):
-            self.bccs_[i].fit(rng = self.rng)
+        
+        new_gens = self.rng.spawn(self.K)
+        self.bccs_ = Parallel(n_jobs = n_jobs)(delayed(_fit_Class)(BayesCC, new_gens[i], self.X[self.bkps[i]:self.bkps[i+2], :], 
+                                                                   prior_mean, self.prior_cov, self.n_iter, 
+                                                                   self.prior_kappas[i]) for i in range(self.K))
     
     def transform(self):
         """
@@ -125,8 +134,23 @@ class MultiBayesCC:
         
         self.transformed = True
     
-    def proc(self):
-        self.fit()
+    def proc(self, n_jobs=None):
+        """
+        Similar to fit_transform, but resets transformed attribute.
+
+        Parameters
+        ----------
+        n_jobs : int or None, optional, default is ``None``
+            The number of jobs to use for the computation. ``None`` means 1 unless
+            in a :obj:`joblib.parallel_backend` context. ``-1`` means using all
+            processors.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.fit(n_jobs=n_jobs)
         self.transform()
         self.transformed = False
 
@@ -160,7 +184,8 @@ class MultiBayesCC:
                     pass
                 else:
                     prev = pot
-                mode_val = prob_mode(bc.post_k[np.logical_and(bc.post_k >= prev-offset + self.min_size, bc.post_k <= self.bkps[i+2]-self.min_size)])
+                mode_val = prob_mode(bc.post_k[np.logical_and(bc.post_k >= prev-offset + self.min_size,
+                                                              bc.post_k <= self.bkps[i+2]-self.min_size)])
                 bc_info.append((mode_val+offset, bc.post_mode_prob, bc.norm_entr))
             else:
                 bc_info.append((bc.post_k_mode+offset, bc.post_mode_prob, bc.norm_entr))
@@ -175,7 +200,7 @@ class MultiBayesCC:
             else:
                 return df_red[df_red['Normalized Entropy'] < thr]
     
-    def fit_predict(self, iter_sch = [100, 250], thr_sch = [0.75, 0.5], offset=0):
+    def fit_predict(self, iter_sch=None, thr_sch=None, n_jobs=None, offset=0):
         """
         Predict changepoints after two successive warm-up periods of increasing "complexity".
 
@@ -183,9 +208,16 @@ class MultiBayesCC:
         ----------
         iter_sch : list of increasing positive int, optional
             List of increasing number of iterations to run Gibbs sampler in first two warm-up periods. 
-            The default is [100, 250].
+            The default is None, which becomes [100, 250].
         thr_sch : List of decreasing float between 0 and 1, optional
-            List of decreasing entropy thresholds. The default is [0.75, 0.5].
+            List of decreasing entropy thresholds. The default is None, which becomes [0.75, 0.5].
+        n_jobs : int or None, optional, default is ``None``
+            The number of jobs to use for the computation. ``None`` means 1 unless
+            in a :obj:`joblib.parallel_backend` context. ``-1`` means using all
+            processors.
+        offset : float, optional
+            For use in time series with indexing representing time: e.g. years, etc. Adds this
+            value to the estimated changepoints. The default is 0.
 
         Returns
         -------
@@ -193,28 +225,41 @@ class MultiBayesCC:
             Estimated changepoints, posterior probability and normalized entropy.
 
         """
+        if iter_sch is None:
+            iter_sch = [100, 250]
+            
+        if thr_sch is None:
+            thr_sch = [0.75, 0.5]
+        
         if len(iter_sch) != 2 or len(thr_sch) != 2:
             raise ValueError("Please ensure iter_sch and thr_sch are both of length 2")
         
-        self.warm_up(n_iter_w=iter_sch[0], thr=thr_sch[0])
-        self.warm_up(n_iter_w=iter_sch[1], thr=thr_sch[1])
-        self.fit()
+        self.warm_up(n_iter_w=iter_sch[0], thr=thr_sch[0], n_jobs=n_jobs)
+        self.warm_up(n_iter_w=iter_sch[1], thr=thr_sch[1], n_jobs=n_jobs)
+        self.fit(n_jobs=n_jobs)
         self.transform()
         return self.cps_df(offset=offset)
     
-    def fit_transform(self):
+    def fit_transform(self, n_jobs=None):
         """
         Fits, then transforms.
+        
+        Parameters
+        ----------
+        n_jobs : int or None, optional, default is ``None``
+            The number of jobs to use for the computation. ``None`` means 1 unless
+            in a :obj:`joblib.parallel_backend` context. ``-1`` means using all
+            processors.
 
         Returns
         -------
         None.
 
         """
-        self.fit()
+        self.fit(n_jobs=n_jobs)
         self.transform()
     
-    def warm_up(self, n_iter_w=100, thr=None):
+    def warm_up(self, n_iter_w=100, thr=None, n_jobs=None):
         """
         Runs the chain with various initializations according to Section 6.1 of Thomas, Jauch, and Matteson (2025).
         Argument thr can be useful for enhanced estimation ability by removing spurious changepoints. Resets ``bkps`` and
@@ -227,6 +272,10 @@ class MultiBayesCC:
         thr : float, optional
             Remove changepoints with normalized entropy greater than threshold.
             Between 0 and 1. The default is None.
+        n_jobs : int or None, optional, default is ``None``
+            The number of jobs to use for the computation. ``None`` means 1 unless
+            in a :obj:`joblib.parallel_backend` context. ``-1`` means using all
+            processors.
 
         Returns
         -------
@@ -237,7 +286,7 @@ class MultiBayesCC:
         self.n_iter_init = self.n_iter
         self.n_iter = n_iter_w
             
-        self.proc()
+        self.proc(n_jobs=n_jobs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             dfM = self.cps_df(thr)['Location']
@@ -245,11 +294,10 @@ class MultiBayesCC:
         self.bkps = [0] + list(dfM_nan.astype(np.int32)) + [self.n]
         if len(dfM_nan) < self.K:
             if self.warnings:
-                warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to min_size constraints specified in MultiBayesCC... \n""",
+                warnings.warn_explicit(message="""Number of changepoints reduced due to nan values owing to 
+                                       min_size constraints specified in MultiBayesCC... \n""",
                           category=SegmentationWarning, filename="bclr_multi.py", lineno=246)
             self.K = len(dfM_nan)
         
         self.n_iter = self.n_iter_init
-        
-        
-        
+

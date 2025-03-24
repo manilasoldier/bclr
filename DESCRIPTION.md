@@ -9,21 +9,21 @@ These methods were developed in [Thomas, Jauch, and Matteson (2025)](https://arx
 The simplest way to install the package, is to install from <code>PyPI</code> via the code:
 
 ```
-$ pip install bclr
+pip install bclr
 ```
 
 Alternatively, if you would like to install the source code, you can clone the repository and then install via pip (Linux/Mac):
 
 ```
-$ git clone https://github.com/manilasoldier/bclr.git
-$ cd bclr
-$ pip install .
+git clone https://github.com/manilasoldier/bclr.git
+cd bclr
+pip install .
 ```
 
 or run
 
 ```
-$ pip install git+https://github.com/manilasoldier/bclr.git
+pip install git+https://github.com/manilasoldier/bclr.git
 ```
 
 ## Running the code
@@ -48,7 +48,6 @@ First, let's specify a prior for the $\beta$ coefficients (we need to provide a 
 
 ### Single changepoint setup
 
-
 ```python
 rng1 = np.random.default_rng(800037) #for reproducibility
 prior_covS = np.diag(np.repeat(3, 6))
@@ -59,7 +58,6 @@ bclrS = bclr.BayesCC(X = Xs, prior_mean = prior_mean, prior_cov = prior_covS,
 bclrS.fit(rng = rng1)
 bclrS.transform(verbose=False)
 ```
-
 
 ```python
 bclrS.plot_k()
@@ -75,7 +73,6 @@ Then, we will go ahead and fit <code>bclr</code> to the data and estimate (predi
 
 Note: there is no need to specify a prior_mean for the multiple changepoint setup.
 
-
 ```python
 np.random.seed(199203)
 b1 = np.random.randn(100, 10)
@@ -86,7 +83,6 @@ b4 = np.random.randn(80, 10) + np.broadcast_to(np.random.randn(10), (80, 10))
 Xm = np.r_[b1, b2, b3, b4]
 ```
 
-
 ```python
 rng2 = np.random.default_rng(199203) #for reproducibility
 prior_covM = np.diag(np.repeat(3, 10))
@@ -96,10 +92,10 @@ cps = bclrM.fit_predict()
 ```
 
 Now we can look at
+
 - where the changes are estimated to be located, 
 - the posterior probability of the estimates, and 
 - the normalized entropy of the segment distribution.
-
 
 ```python
 print(cps)
@@ -109,4 +105,3 @@ print(cps)
     0      99.0                  0.946            0.047544
     1     180.0                  1.000            0.000000
     2     320.0                  0.996            0.005354
-
